@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -15,31 +18,12 @@ STATIC = Path(__file__).parent
 
 
 def build_handler(service: CareerQuestService):
+    employee_api = os.getenv("CAREER_QUEST_EMPLOYEE_API", "http://127.0.0.1:8000")
+
     def dashboard_payload() -> dict:
-        rows = []
-        skill_gaps: dict[str, dict] = {}
-        statuses: dict[str, int] = {}
-        for employee in service.dataset.employees:
-            view = service.trajectory_view(employee["employee_id"])
-            rows.append({
-                "employee_id": employee["employee_id"],
-                "full_name": employee["full_name"],
-                "department": employee["department"],
-                "role": employee["role"],
-                "grade": employee["grade"],
-                "target_role": view["trajectory"]["target_role"],
-                "target_grade": view["trajectory"]["target_grade"],
-                "progress_pct": view["trajectory"]["progress_pct"],
-                "top_action": view["recommendations"][0]["title"] if view["recommendations"] else None,
-            })
-            for gap in view["gaps"]:
-                if gap["gap"] > 0:
-                    record = skill_gaps.setdefault(gap["skill_name"], {"name": gap["skill_name"], "count": 0})
-                    record["count"] += 1
-            for activity in service.dataset.history_by_employee.get(employee["employee_id"], []):
-                statuses[activity["status"]] = statuses.get(activity["status"], 0) + 1
-        summary = service.hr_overview()["summary"]
-        return {"summary": {"employee_count": summary["employees"], "average_progress_pct": summary["average_progress_pct"], "without_recommendation": sum(not row["top_action"] for row in rows), "completed_activities": statuses.get("completed", 0)}, "employees": rows, "top_skill_gaps": sorted(skill_gaps.values(), key=lambda item: -item["count"]), "participation": [{"status": key, "count": value} for key, value in sorted(statuses.items(), key=lambda item: -item[1])]}
+        request = urllib.request.Request(f"{employee_api.rstrip('/')}/api/hr/overview")
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return json.loads(response.read())
 
     class Handler(BaseHTTPRequestHandler):
         def send_json(self, payload: object, status: int = 200) -> None:
@@ -66,7 +50,10 @@ def build_handler(service: CareerQuestService):
         def do_GET(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
             if path == "/api/hr/overview":
-                self.send_json(dashboard_payload())
+                try:
+                    self.send_json(dashboard_payload())
+                except (urllib.error.URLError, TimeoutError) as exc:
+                    self.send_json({"error": f"Employee server unavailable: {exc}"}, 502)
             elif path in {"/", "/index.html"}:
                 self.send_file(STATIC / "index.html", "text/html; charset=utf-8")
             elif path == "/styles.css":
