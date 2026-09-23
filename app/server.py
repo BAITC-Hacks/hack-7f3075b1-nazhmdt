@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -62,7 +65,11 @@ def build_handler(service: CareerQuestService):
                 self._send_json({"error": str(exc)}, 500)
 
         def do_POST(self) -> None:  # noqa: N802
-            parts = [part for part in urlparse(self.path).path.split("/") if part]
+            parsed_path = urlparse(self.path).path
+            if parsed_path == "/api/coach":
+                self._coach_response()
+                return
+            parts = [part for part in parsed_path.split("/") if part]
             if len(parts) != 5 or parts[:2] != ["api", "employees"] or parts[3] != "activities" or parts[4] != "complete":
                 self._send_json({"error": "Not found"}, 404)
                 return
@@ -78,6 +85,41 @@ def build_handler(service: CareerQuestService):
             if not event_id:
                 raise ValueError("event_id is required")
             return event_id
+
+        def _read_json_body(self) -> dict:
+            length = int(self.headers.get("Content-Length", "0"))
+            return json.loads(self.rfile.read(length) or b"{}")
+
+        def _coach_response(self) -> None:
+            body = self._read_json_body()
+            question = str(body.get("question", "")).strip()
+            language = body.get("language", "ru")
+            if not question:
+                self._send_json({"error": "question is required"}, 400)
+                return
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                self._send_json({"error": "OPENAI_API_KEY is not configured"}, 503)
+                return
+            language_name = {"ru": "Russian", "kk": "Kazakh", "en": "English"}.get(language, "Russian")
+            employee = body.get("employee") or {}
+            trajectory = body.get("trajectory") or {}
+            system = (
+                "You are the Career Quest employee development coach for Halyk Bank. "
+                f"Answer in {language_name}. Be concise, practical, supportive and specific. "
+                "Explain the current app, recommend a safe first step, and never expose private employee data. "
+                f"Employee role: {employee.get('role', 'unknown')}; grade: {employee.get('grade', 'unknown')}; "
+                f"target role: {trajectory.get('target_role', 'unknown')}."
+            )
+            payload = json.dumps({"model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"), "input": [{"role": "system", "content": system}, {"role": "user", "content": question}], "max_output_tokens": 240}).encode("utf-8")
+            request = urllib.request.Request("https://api.openai.com/v1/responses", data=payload, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, method="POST")
+            try:
+                with urllib.request.urlopen(request, timeout=20) as response:
+                    result = json.loads(response.read())
+                answer = result.get("output_text") or "Не удалось получить ответ помощника."
+                self._send_json({"answer": answer})
+            except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+                self._send_json({"error": f"Coach unavailable: {exc}"}, 502)
 
         def log_message(self, format: str, *args: object) -> None:
             print(f"[career-quest] {format % args}")
