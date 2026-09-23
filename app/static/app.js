@@ -23,13 +23,14 @@ async function request(url, options) {
 function showError(error) { const box = $('#error'); box.textContent = error.message || String(error); box.hidden = false; }
 
 function renderEmployee() {
-  const p = state.profile; const person = p.employee; const t = p.trajectory;
+  const p = state.profile; const person = p.employee; const t = p.trajectory; const game = p.gamification || { coins_balance: 1280, weekly_coins: 120, streak_days: 3 };
   $('#loading').hidden = true; $('#employee-home').hidden = false; $('#hr-overview').hidden = true;
-  const tasks = p.recommendations.slice(0, 3).map((item) => `<article class="task-card"><div class="task-type">${item.type} · ${item.duration_hours} ч</div><h3>${item.title}</h3><p>${item.reasons[0] || item.description}</p><div class="task-footer"><span class="task-reward">+${Math.round(item.score * 100)} Coins</span><button class="small-button complete" data-event="${item.event_id}">Начать</button></div></article>`).join('');
+  const tasks = p.recommendations.slice(0, 3).map((item) => `<article class="task-card"><div class="task-type">${item.type} · ${item.duration_hours} ч</div><h3>${item.title}</h3><p>${item.reasons[0] || item.description}</p><div class="task-footer"><span class="task-reward">+${item.reward_coins || 60} Coins</span><button class="small-button complete" data-event="${item.event_id}">Начать</button></div></article>`).join('');
   $('#employee-home').innerHTML = `<div class="greeting"><div><div class="muted">Добрый день</div><h1>${person.full_name.split(' ')[0]} 👋</h1></div><div class="avatar">${person.full_name.slice(0, 1)}</div></div>
-    <section class="balance-card"><div><span class="card-label">Мои Coins</span><strong>1 280</strong><span class="card-note">+120 за эту неделю</span></div><div class="coin">●</div></section>
+    <section class="balance-card"><div><span class="card-label">Мои Coins</span><strong>${game.coins_balance.toLocaleString('ru-RU')}</strong><span class="card-note">+${game.weekly_coins} за эту неделю · серия ${game.streak_days} дн.</span></div><div class="coin">●</div></section>
     <section class="career-card"><div class="section-head"><div><div class="muted">Карьерный маршрут</div><h2>${person.role}</h2></div><span class="level-pill">${person.grade}</span></div><div class="route-line"><span class="route-dot done"></span><span class="route-label">${person.grade}</span><span class="route-connector"></span><span class="route-dot current"></span><span class="route-label">${t.target_grade}</span></div><div class="progress-track"><div class="progress-fill" style="width:${t.progress_pct}%"></div></div><div class="progress-caption"><span>${t.progress_pct}% пути пройдено</span><span>Следующий уровень</span></div></section>
     <div class="section-head tasks-head"><h2>Рекомендуемые шаги</h2><button class="link-button" data-view="development">Все</button></div><div class="task-list">${tasks || '<div class="empty-card">Новых заданий пока нет</div>'}</div>
+    <section class="achievements"><div class="section-head"><h2>Мои достижения</h2><span class="muted">${(game.achievements || []).length}</span></div><div class="achievement-list">${(game.achievements || []).map((item) => `<span class="achievement">✦ ${item}</span>`).join('')}</div></section>
     <section class="next-role"><div class="muted">Возможность роста</div><h2>Развитие в смежной области</h2><p>Система видит направления, где ваши навыки уже близки к следующему уровню.</p><button class="outline-button" data-view="development">Посмотреть варианты</button></section>`;
   document.querySelectorAll('.complete').forEach((button) => button.addEventListener('click', () => completeActivity(button.dataset.event, button)));
   document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
@@ -47,6 +48,4 @@ function setView(view) { state.view = view; document.querySelectorAll('.nav-item
 
 async function login() { const code = $('#employee-code').value.trim().toUpperCase(); try { const data = await request('/api/employees'); if (!data.employees.some((item) => item.employee_id === code)) throw new Error('Проверьте код сотрудника'); state.employeeId = code; state.profile = await request(`/api/employees/${code}`); $('#login').hidden = true; $('#app').hidden = false; renderEmployee(); } catch (error) { showError(error); } }
 
-async function openHr() { try { renderHr(await request('/api/hr/overview')); } catch (error) { showError(error); } }
-
-$('#login-button').addEventListener('click', login); $('#employee-code').addEventListener('keydown', (event) => { if (event.key === 'Enter') login(); }); $('#hr-button').addEventListener('click', openHr); document.querySelectorAll('.nav-item').forEach((item) => item.addEventListener('click', () => setView(item.dataset.view)));
+$('#login-button').addEventListener('click', login); $('#employee-code').addEventListener('keydown', (event) => { if (event.key === 'Enter') login(); }); document.querySelectorAll('.nav-item').forEach((item) => item.addEventListener('click', () => setView(item.dataset.view)));

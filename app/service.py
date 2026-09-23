@@ -62,6 +62,12 @@ class CareerQuestService:
                 }
                 for row in sorted(history, key=lambda item: item["date"], reverse=True)[:8]
             ],
+            "gamification": {
+                "coins_balance": 1280 + (len(history) * 40),
+                "weekly_coins": min(500, len(history) * 40),
+                "streak_days": min(12, 3 + len(history)),
+                "achievements": ["Первый шаг", "В ритме развития"] if history else ["Первый шаг"],
+            },
         }
 
     def complete_activity(self, employee_id: str, event_id: str) -> dict[str, Any]:
@@ -162,4 +168,5 @@ class CareerQuestService:
             "critical_skills": [names.get(skill_id, skill_id) for skill_id in item.critical_skills],
             "reasons": list(item.reasons),
             "history_signal": item.history_signal,
+            "reward_coins": 120 if event["type"] == "course" else 60,
         }
