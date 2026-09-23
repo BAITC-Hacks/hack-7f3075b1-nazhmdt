@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Career Quest</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">H</span><span>Career Quest</span></div>
+    <div class="topbar-meta"><span class="status-dot"></span> Внутренний контур развития</div>
+  </header>
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="eyebrow">СОТРУДНИКИ</div>
+      <label class="search"><span>⌕</span><input id="search" placeholder="Найти сотрудника"></label>
+      <div id="employees" class="employee-list"></div>
+      <div class="sidebar-note">Профиль и история видны только в рабочем контуре команды.</div>
+    </aside>
+    <section class="content">
+      <div id="error" class="error" hidden></div>
+      <div id="loading" class="loading">Загружаем профиль…</div>
+      <div id="profile" hidden></div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
