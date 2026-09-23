@@ -1,5 +1,4 @@
 """Standalone HR dashboard server. It does not change the employee app."""
-
 from __future__ import annotations
 
 import json
@@ -19,11 +18,10 @@ STATIC = Path(__file__).parent
 
 def build_handler(service: CareerQuestService):
     employee_api = os.getenv("CAREER_QUEST_EMPLOYEE_API", "http://127.0.0.1:8000")
+    local_mode = False
 
     def local_dashboard_payload() -> dict:
-        rows = []
-        gaps: dict[str, dict] = {}
-        statuses: dict[str, int] = {}
+        rows, gaps, statuses = [], {}, {}
         for employee in service.dataset.employees:
             view = service.trajectory_view(employee["employee_id"])
             rows.append({"employee_id": employee["employee_id"], "full_name": employee["full_name"], "department": employee["department"], "role": employee["role"], "grade": employee["grade"], "target_role": view["trajectory"]["target_role"], "target_grade": view["trajectory"]["target_grade"], "progress_pct": view["trajectory"]["progress_pct"], "top_action": view["recommendations"][0]["title"] if view["recommendations"] else None})
@@ -35,6 +33,8 @@ def build_handler(service: CareerQuestService):
         return {"summary": {"employee_count": len(rows), "average_progress_pct": round(sum(row["progress_pct"] for row in rows) / len(rows)) if rows else 0, "without_recommendation": sum(not row["top_action"] for row in rows), "completed_activities": statuses.get("completed", 0)}, "employees": rows, "top_skill_gaps": sorted(gaps.values(), key=lambda item: -item["count"]), "participation": [{"status": key, "count": value} for key, value in sorted(statuses.items(), key=lambda item: -item[1])], "source": "local fallback"}
 
     def dashboard_payload() -> dict:
+        if local_mode:
+            return local_dashboard_payload()
         try:
             request = urllib.request.Request(f"{employee_api.rstrip('/')}/api/hr/overview")
             with urllib.request.urlopen(request, timeout=5) as response:
@@ -45,11 +45,13 @@ def build_handler(service: CareerQuestService):
             return local_dashboard_payload()
 
     def employee_detail(employee_id: str) -> dict:
+        if local_mode:
+            return service.trajectory_view(employee_id)
         try:
             request = urllib.request.Request(f"{employee_api.rstrip('/')}/api/employees/{employee_id}")
             with urllib.request.urlopen(request, timeout=5) as response:
                 return json.loads(response.read())
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, TimeoutError, urllib.error.HTTPError):
             return service.trajectory_view(employee_id)
 
     class Handler(BaseHTTPRequestHandler):
@@ -96,9 +98,35 @@ def build_handler(service: CareerQuestService):
         def do_OPTIONS(self) -> None:  # noqa: N802
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.end_headers()
+
+        def do_POST(self) -> None:  # noqa: N802
+            nonlocal local_mode
+            if urlparse(self.path).path != "/api/import":
+                self.send_json({"error": "Not found"}, 404)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                payload = json.loads(self.rfile.read(length) or b"{}")
+                employees = payload.get("employees") or []
+                history = payload.get("history") or []
+                if not isinstance(employees, list) or not isinstance(history, list):
+                    raise ValueError("employees and history must be arrays")
+                known = {item["employee_id"] for item in service.dataset.employees}
+                added = 0
+                for employee in employees:
+                    employee_id = employee.get("employee_id")
+                    if employee_id and employee_id not in known:
+                        service.dataset.employees.append(employee)
+                        known.add(employee_id)
+                        added += 1
+                service.dataset.activity_history.extend(history)
+                local_mode = True
+                self.send_json({"ok": True, "added_employees": added, "added_history": len(history)})
+            except (ValueError, KeyError, json.JSONDecodeError) as exc:
+                self.send_json({"error": str(exc)}, 400)
 
         def log_message(self, fmt: str, *args: object) -> None:
             print(f"[career-quest-hr] {fmt % args}")
@@ -120,7 +148,6 @@ def run(host: str = "127.0.0.1", port: int = 8010) -> None:
 
 if __name__ == "__main__":
     import argparse
-
     parser = argparse.ArgumentParser(description="Run the separate Career Quest HR dashboard")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8010)
