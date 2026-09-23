@@ -125,9 +125,18 @@ def build_handler(service: CareerQuestService):
             try:
                 with urllib.request.urlopen(request, timeout=20) as response:
                     result = json.loads(response.read())
-                answer = result.get("output_text") or "Не удалось получить ответ помощника."
+                answer = result.get("output_text")
+                if not answer:
+                    chunks = []
+                    for output_item in result.get("output", []):
+                        for content_item in output_item.get("content", []):
+                            if content_item.get("type") in {"output_text", "text"} and content_item.get("text"):
+                                chunks.append(content_item["text"])
+                    answer = "\n".join(chunks).strip()
+                if not answer:
+                    raise ValueError("OpenAI returned no text")
                 self._send_json({"answer": answer})
-            except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+            except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError) as exc:
                 self._send_json({"error": f"Coach unavailable: {exc}"}, 502)
 
         def log_message(self, format: str, *args: object) -> None:
