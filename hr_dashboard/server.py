@@ -44,6 +44,14 @@ def build_handler(service: CareerQuestService):
         except (urllib.error.URLError, TimeoutError):
             return local_dashboard_payload()
 
+    def employee_detail(employee_id: str) -> dict:
+        try:
+            request = urllib.request.Request(f"{employee_api.rstrip('/')}/api/employees/{employee_id}")
+            with urllib.request.urlopen(request, timeout=5) as response:
+                return json.loads(response.read())
+        except (urllib.error.URLError, TimeoutError):
+            return service.trajectory_view(employee_id)
+
     class Handler(BaseHTTPRequestHandler):
         def send_json(self, payload: object, status: int = 200) -> None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -70,6 +78,12 @@ def build_handler(service: CareerQuestService):
             path = urlparse(self.path).path
             if path == "/api/hr/overview":
                 self.send_json(dashboard_payload())
+            elif path.startswith("/api/hr/employees/"):
+                employee_id = path.rsplit("/", 1)[-1]
+                try:
+                    self.send_json(employee_detail(employee_id))
+                except KeyError:
+                    self.send_json({"error": "Employee not found"}, 404)
             elif path in {"/", "/index.html"}:
                 self.send_file(STATIC / "index.html", "text/html; charset=utf-8")
             elif path == "/styles.css":
