@@ -105,13 +105,22 @@ def build_handler(service: CareerQuestService):
             employee = body.get("employee") or {}
             trajectory = body.get("trajectory") or {}
             system = (
-                "You are the Career Quest employee development coach for Halyk Bank. "
-                f"Answer in {language_name}. Be concise, practical, supportive and specific. "
-                "Explain the current app, recommend a safe first step, and never expose private employee data. "
+                "You are an action-oriented AI development agent inside Career Quest for Halyk Bank. "
+                f"Answer in {language_name}. Do not sound like a FAQ bot: first interpret the employee's intent, "
+                "use the supplied profile and recommendations, explain why a step fits, then propose one concrete next action "
+                "and finish with one short clarifying question. Keep the response under 120 words, use short paragraphs, "
+                "and never expose private employee data or invent HR decisions. "
                 f"Employee role: {employee.get('role', 'unknown')}; grade: {employee.get('grade', 'unknown')}; "
-                f"target role: {trajectory.get('target_role', 'unknown')}."
+                f"target role: {trajectory.get('target_role', 'unknown')}. "
+                f"Recommendations: {json.dumps(body.get('recommendations', []), ensure_ascii=False)}"
             )
-            payload = json.dumps({"model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"), "input": [{"role": "system", "content": system}, {"role": "user", "content": question}], "max_output_tokens": 240}).encode("utf-8")
+            history = body.get("history") or []
+            conversation = [{"role": "system", "content": system}]
+            for item in history[-6:]:
+                if item.get("role") in {"user", "assistant"} and item.get("content"):
+                    conversation.append({"role": item["role"], "content": str(item["content"])[:1000]})
+            conversation.append({"role": "user", "content": question})
+            payload = json.dumps({"model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"), "input": conversation, "max_output_tokens": 240}).encode("utf-8")
             request = urllib.request.Request("https://api.openai.com/v1/responses", data=payload, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, method="POST")
             try:
                 with urllib.request.urlopen(request, timeout=20) as response:
