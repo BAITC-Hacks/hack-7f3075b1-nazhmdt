@@ -1,0 +1,1 @@
+"""Separate HR dashboard package."""
