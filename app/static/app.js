@@ -1,12 +1,40 @@
-const state = { employees: [], selected: null, view: 'employees' };
+const state = { employees: [], selected: null, view: 'employees', staticData: null };
 
 const $ = (selector) => document.querySelector(selector);
 
 async function request(url, options) {
-  const response = await fetch(url, options);
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || 'Не удалось выполнить запрос');
-  return payload;
+  try {
+    const response = await fetch(url, options);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Не удалось выполнить запрос');
+    return payload;
+  } catch (error) {
+    if (!url.startsWith('/api/')) throw error;
+    return staticRequest(url, options);
+  }
+}
+
+async function loadStaticData() {
+  if (!state.staticData) state.staticData = await (await fetch('/data.json')).json();
+  return state.staticData;
+}
+
+async function staticRequest(url, options = {}) {
+  const data = await loadStaticData();
+  const employeeMatch = url.match(/^\/api\/employees\/([^/]+)/);
+  if (url === '/api/employees') return { employees: data.employees };
+  if (url === '/api/hr/overview') return data.hr_overview;
+  if (employeeMatch) {
+    const employeeId = employeeMatch[1];
+    const profile = JSON.parse(JSON.stringify(data.profiles[employeeId]));
+    if (options.method === 'POST') {
+      const eventId = JSON.parse(options.body || '{}').event_id;
+      profile.recommendations = profile.recommendations.filter((item) => item.event_id !== eventId);
+      profile.history.unshift({ event_title: 'Активность отмечена в демо-режиме', status: 'completed', date: new Date().toISOString().slice(0, 10) });
+    }
+    return profile;
+  }
+  throw new Error('Не удалось выполнить запрос');
 }
 
 function showError(error) {
