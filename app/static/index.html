@@ -3,28 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Career Quest</title>
+  <title>Career Quest · Halyk</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><span class="brand-mark">H</span><span>Career Quest</span></div>
-    <div class="topbar-actions"><button id="employee-view" class="view-button active">Сотрудники</button><button id="hr-view" class="view-button">HR-обзор</button><span class="topbar-meta"><span class="status-dot"></span> Внутренний контур развития</span></div>
-  </header>
-  <main class="layout">
-    <aside class="sidebar">
-      <div class="eyebrow">СОТРУДНИКИ</div>
-      <label class="search"><span>⌕</span><input id="search" placeholder="Найти сотрудника"></label>
-      <div id="employees" class="employee-list"></div>
-      <div class="sidebar-note">Профиль и история видны только в рабочем контуре команды.</div>
-    </aside>
-    <section class="content">
-      <div id="error" class="error" hidden></div>
-      <div id="loading" class="loading">Загружаем профиль…</div>
-      <div id="profile" hidden></div>
-      <div id="hr-overview" hidden></div>
-    </section>
-  </main>
+  <div id="login" class="login-screen">
+    <div class="login-card">
+      <div class="halyk-mark">✦</div>
+      <div class="brand-title">Halyk <span>Career</span></div>
+      <p>Личный кабинет развития сотрудника</p>
+      <label class="field-label" for="employee-code">Код сотрудника</label>
+      <input id="employee-code" class="code-input" value="E0002" autocomplete="off" placeholder="Например, E0002">
+      <button id="login-button" class="primary-button">Войти</button>
+      <div class="demo-hint">Демо-вход: E0001, E0002 или E0028</div>
+    </div>
+  </div>
+  <div id="app" hidden>
+    <header class="mobile-header"><div class="brand-title">Halyk <span>Career</span></div><button id="hr-button" class="text-button">HR</button></header>
+    <main class="mobile-shell"><div id="error" class="error" hidden></div><div id="loading" class="loading">Загружаем профиль…</div><section id="employee-home" hidden></section><section id="hr-overview" hidden></section></main>
+    <nav id="bottom-nav" class="bottom-nav"><button class="nav-item active" data-view="home"><span>⌂</span>Главная</button><button class="nav-item" data-view="development"><span>↗</span>Развитие</button><button class="nav-item" data-view="coins"><span>●</span>Coins</button><button class="nav-item" data-view="profile"><span>○</span>Профиль</button></nav>
+  </div>
   <script src="/app.js"></script>
 </body>
 </html>
