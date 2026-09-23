@@ -91,6 +91,51 @@ class CareerQuestService:
         self._next_record += 1
         return self.trajectory_view(employee_id)
 
+    def hr_overview(self) -> dict[str, Any]:
+        """Return a compact, explainable portfolio view for an HR reviewer."""
+        rows = []
+        for employee in self.dataset.employees:
+            view = self.trajectory_view(employee["employee_id"])
+            critical = sum(1 for gap in view["gaps"] if gap["critical"])
+            rows.append({
+                "employee_id": employee["employee_id"],
+                "full_name": employee["full_name"],
+                "department": employee["department"],
+                "role": employee["role"],
+                "target_role": view["trajectory"]["target_role"],
+                "target_grade": view["trajectory"]["target_grade"],
+                "progress_pct": view["trajectory"]["progress_pct"],
+                "gap_count": len(view["gaps"]),
+                "critical_gap_count": critical,
+                "top_action": view["recommendations"][0]["title"] if view["recommendations"] else None,
+            })
+        avg_progress = round(sum(row["progress_pct"] for row in rows) / len(rows)) if rows else 0
+        at_risk = sorted(rows, key=lambda row: (-row["critical_gap_count"], row["progress_pct"]))
+        return {
+            "summary": {
+                "employees": len(rows),
+                "average_progress_pct": avg_progress,
+                "employees_with_critical_gaps": sum(row["critical_gap_count"] > 0 for row in rows),
+            },
+            "at_risk": at_risk[:8],
+            "departments": self._department_summary(rows),
+        }
+
+    @staticmethod
+    def _department_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            grouped.setdefault(row["department"], []).append(row)
+        return [
+            {
+                "department": department,
+                "employees": len(items),
+                "average_progress_pct": round(sum(item["progress_pct"] for item in items) / len(items)),
+                "critical_gaps": sum(item["critical_gap_count"] for item in items),
+            }
+            for department, items in sorted(grouped.items())
+        ]
+
     @staticmethod
     def _gap_json(gap: Any) -> dict[str, Any]:
         return {

@@ -44,6 +44,8 @@ def build_handler(service: CareerQuestService):
             try:
                 if parsed.path == "/api/employees":
                     self._send_json({"employees": service.list_employees()})
+                elif parsed.path == "/api/hr/overview":
+                    self._send_json(service.hr_overview())
                 elif len(parts) == 3 and parts[:2] == ["api", "employees"]:
                     self._send_json(service.trajectory_view(parts[2]))
                 elif parsed.path in ("/", "/index.html"):
@@ -100,4 +102,10 @@ def run(host: str = "127.0.0.1", port: int = 8000) -> None:
 
 
 if __name__ == "__main__":
-    run()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run the Career Quest MVP locally")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+    run(args.host, args.port)

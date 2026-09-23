@@ -28,6 +28,13 @@ class CareerQuestServiceTests(unittest.TestCase):
         self.assertTrue(after_system is None or after_system["current_level"] == 2)
         self.assertTrue(any(row["event_id"] == "EV_005" and row["status"] == "completed" for row in updated["history"]))
 
+    def test_hr_overview_contains_summary_and_departments(self):
+        overview = self.service.hr_overview()
+        self.assertEqual(overview["summary"]["employees"], 200)
+        self.assertGreater(overview["summary"]["average_progress_pct"], 0)
+        self.assertTrue(overview["at_risk"])
+        self.assertTrue(overview["departments"])
+
 
 if __name__ == "__main__":
     unittest.main()

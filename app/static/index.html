@@ -9,7 +9,7 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark">H</span><span>Career Quest</span></div>
-    <div class="topbar-meta"><span class="status-dot"></span> Внутренний контур развития</div>
+    <div class="topbar-actions"><button id="employee-view" class="view-button active">Сотрудники</button><button id="hr-view" class="view-button">HR-обзор</button><span class="topbar-meta"><span class="status-dot"></span> Внутренний контур развития</span></div>
   </header>
   <main class="layout">
     <aside class="sidebar">
@@ -22,6 +22,7 @@
       <div id="error" class="error" hidden></div>
       <div id="loading" class="loading">Загружаем профиль…</div>
       <div id="profile" hidden></div>
+      <div id="hr-overview" hidden></div>
     </section>
   </main>
   <script src="/app.js"></script>

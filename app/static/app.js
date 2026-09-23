@@ -1,4 +1,4 @@
-const state = { employees: [], selected: null };
+const state = { employees: [], selected: null, view: 'employees' };
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -13,6 +13,30 @@ function showError(error) {
   const box = $('#error');
   box.textContent = error.message || String(error);
   box.hidden = false;
+}
+
+function setView(view) {
+  state.view = view;
+  $('#employee-view').classList.toggle('active', view === 'employees');
+  $('#hr-view').classList.toggle('active', view === 'hr');
+  $('.sidebar').hidden = view === 'hr';
+  $('#profile').hidden = view !== 'employees' || !state.selected;
+  $('#hr-overview').hidden = view !== 'hr';
+}
+
+function renderHr(payload) {
+  const summary = payload.summary;
+  $('#loading').hidden = true;
+  $('#hr-overview').innerHTML = `<div class="profile-head"><div><div class="kicker">HR-ОБЗОР</div><h1>Состояние развития</h1><div class="subtitle">Объяснимая сводка по карьерным траекториям команды</div></div></div>
+    <div class="metric-grid"><div class="metric"><span>Сотрудники</span><strong>${summary.employees}</strong></div><div class="metric"><span>Средний прогресс</span><strong>${summary.average_progress_pct}%</strong></div><div class="metric"><span>Есть критический разрыв</span><strong>${summary.employees_with_critical_gaps}</strong></div></div>
+    <div class="grid"><section class="panel"><div class="panel-title"><h2>Фокус внимания</h2><span class="panel-caption">по критическим разрывам</span></div>${payload.at_risk.map((row) => `<div class="risk-row"><div><strong>${row.full_name}</strong><div class="panel-caption">${row.department} · ${row.role}</div></div><div class="risk-progress">${row.progress_pct}%<small>${row.critical_gap_count} крит.</small></div></div>`).join('')}</section>
+    <section class="panel"><div class="panel-title"><h2>По подразделениям</h2><span class="panel-caption">средний прогресс</span></div>${payload.departments.map((row) => `<div class="department-row"><span>${row.department}</span><strong>${row.average_progress_pct}%</strong><small>${row.employees} чел. · ${row.critical_gaps} крит. разрывов</small></div>`).join('')}</section></div>`;
+}
+
+async function showHr() {
+  setView('hr');
+  try { renderHr(await request('/api/hr/overview')); }
+  catch (error) { showError(error); }
 }
 
 function renderEmployees() {
@@ -81,6 +105,8 @@ async function init() {
     state.employees = (await request('/api/employees')).employees;
     renderEmployees();
     $('#search').addEventListener('input', renderEmployees);
+    $('#employee-view').addEventListener('click', () => setView('employees'));
+    $('#hr-view').addEventListener('click', showHr);
     if (state.employees.length) await selectEmployee('E0002');
   } catch (error) { $('#loading').hidden = true; showError(error); }
 }
