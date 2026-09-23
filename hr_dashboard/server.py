@@ -20,10 +20,29 @@ STATIC = Path(__file__).parent
 def build_handler(service: CareerQuestService):
     employee_api = os.getenv("CAREER_QUEST_EMPLOYEE_API", "http://127.0.0.1:8000")
 
+    def local_dashboard_payload() -> dict:
+        rows = []
+        gaps: dict[str, dict] = {}
+        statuses: dict[str, int] = {}
+        for employee in service.dataset.employees:
+            view = service.trajectory_view(employee["employee_id"])
+            rows.append({"employee_id": employee["employee_id"], "full_name": employee["full_name"], "department": employee["department"], "role": employee["role"], "grade": employee["grade"], "target_role": view["trajectory"]["target_role"], "target_grade": view["trajectory"]["target_grade"], "progress_pct": view["trajectory"]["progress_pct"], "top_action": view["recommendations"][0]["title"] if view["recommendations"] else None})
+            for gap in view["gaps"]:
+                if gap["gap"] > 0:
+                    gaps.setdefault(gap["skill_name"], {"name": gap["skill_name"], "count": 0})["count"] += 1
+            for activity in service.dataset.history_by_employee.get(employee["employee_id"], []):
+                statuses[activity["status"]] = statuses.get(activity["status"], 0) + 1
+        return {"summary": {"employee_count": len(rows), "average_progress_pct": round(sum(row["progress_pct"] for row in rows) / len(rows)) if rows else 0, "without_recommendation": sum(not row["top_action"] for row in rows), "completed_activities": statuses.get("completed", 0)}, "employees": rows, "top_skill_gaps": sorted(gaps.values(), key=lambda item: -item["count"]), "participation": [{"status": key, "count": value} for key, value in sorted(statuses.items(), key=lambda item: -item[1])], "source": "local fallback"}
+
     def dashboard_payload() -> dict:
-        request = urllib.request.Request(f"{employee_api.rstrip('/')}/api/hr/overview")
-        with urllib.request.urlopen(request, timeout=5) as response:
-            return json.loads(response.read())
+        try:
+            request = urllib.request.Request(f"{employee_api.rstrip('/')}/api/hr/overview")
+            with urllib.request.urlopen(request, timeout=5) as response:
+                payload = json.loads(response.read())
+                payload["source"] = "employee server"
+                return payload
+        except (urllib.error.URLError, TimeoutError):
+            return local_dashboard_payload()
 
     class Handler(BaseHTTPRequestHandler):
         def send_json(self, payload: object, status: int = 200) -> None:
@@ -50,10 +69,7 @@ def build_handler(service: CareerQuestService):
         def do_GET(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
             if path == "/api/hr/overview":
-                try:
-                    self.send_json(dashboard_payload())
-                except (urllib.error.URLError, TimeoutError) as exc:
-                    self.send_json({"error": f"Employee server unavailable: {exc}"}, 502)
+                self.send_json(dashboard_payload())
             elif path in {"/", "/index.html"}:
                 self.send_file(STATIC / "index.html", "text/html; charset=utf-8")
             elif path == "/styles.css":
