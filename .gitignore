@@ -1,0 +1,33 @@
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+.secrets/
+secrets/
+credentials/
+*.pem
+*.key
+hosts.yml
+.gh/
+
+# Local data: add only sources explicitly allowed by organizers
+data/private/
+data/raw/
+
+# Dependencies and generated files
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.next/
+dist/
+build/
+coverage/
+*.log
+.DS_Store
+
+# Local scratch and authentication setup
+work/
